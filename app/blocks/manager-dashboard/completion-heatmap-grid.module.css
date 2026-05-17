@@ -1,0 +1,82 @@
+.container {
+  background-color: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+}
+
+.title {
+  font-family: var(--family-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-5);
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-x: auto;
+}
+
+.headerRow, .row {
+  display: grid;
+  grid-template-columns: 180px repeat(4, 1fr);
+  gap: 2px;
+}
+
+.empCell {
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface-elevated);
+  border-radius: var(--radius-sm);
+}
+
+.qHeader {
+  padding: var(--space-3);
+  background-color: var(--color-surface-elevated);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.cell {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: default;
+  transition: opacity var(--transition-fast);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cell:hover { opacity: 0.8; }
+
+.empName {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.empDept {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.legend {
+  display: flex;
+  gap: var(--space-6);
+  margin-top: var(--space-4);
+  justify-content: flex-end;
+}
+
+.legendItem {
+  font-size: var(--text-xs);
+  font-weight: 600;
+}

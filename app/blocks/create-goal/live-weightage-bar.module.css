@@ -1,0 +1,76 @@
+.bar {
+  padding: var(--space-4) var(--space-6);
+  background-color: var(--color-surface-card);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.barLabel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.total {
+  font-family: var(--family-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  transition: color 0.3s ease;
+}
+
+.over {
+  color: var(--color-danger);
+}
+
+.complete {
+  color: var(--color-success);
+}
+
+.track {
+  height: 10px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-surface-elevated);
+  overflow: hidden;
+  display: flex;
+}
+
+.existing {
+  height: 100%;
+  background-color: var(--color-primary-dark);
+  transition: width 0.4s ease;
+}
+
+.new {
+  height: 100%;
+  background-color: var(--color-primary);
+  transition: width 0.4s ease;
+}
+
+.newOver {
+  background-color: var(--color-danger);
+}
+
+.legend {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--text-xs);
+}
+
+.existingLegend {
+  color: var(--color-primary-dark);
+}
+
+.newLegend {
+  color: var(--color-primary);
+}
+
+.remainingLegend {
+  color: var(--color-text-muted);
+  margin-left: auto;
+}
