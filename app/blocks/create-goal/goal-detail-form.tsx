@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { getUomFormula } from '~/data/score-engine';
 import type { UomType } from '~/data/score-engine';
@@ -21,9 +21,10 @@ interface Props {
 }
 
 export function GoalDetailForm({ existingWeightage, onSubmit, onBack, onWeightageChange }: Props) {
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     defaultValues: { uomType: 'numeric_min', weightage: 10 },
   });
+  const [isEnhancing, setIsEnhancing] = useState(false);
   const uomType = watch('uomType');
   const weightage = watch('weightage');
   const remaining = Math.max(0, 100 - existingWeightage);
@@ -32,10 +33,45 @@ export function GoalDetailForm({ existingWeightage, onSubmit, onBack, onWeightag
     onWeightageChange?.(Number(weightage) || 0);
   }, [weightage, onWeightageChange]);
 
+  async function handleEnhance() {
+    const currentTitle = watch('title') || '';
+    const currentDesc = watch('description') || '';
+    if (!currentTitle && !currentDesc) {
+      alert('Please enter a basic title or description first.');
+      return;
+    }
+
+    setIsEnhancing(true);
+    try {
+      const fd = new FormData();
+      fd.append('title', currentTitle);
+      fd.append('description', currentDesc);
+      
+      const res = await fetch('/api/enhance-goal', {
+        method: 'POST',
+        body: fd
+      });
+      if (!res.ok) throw new Error('Failed to enhance');
+      
+      const data = await res.json();
+      if (data.title) setValue('title', data.title, { shouldValidate: true });
+      if (data.description) setValue('description', data.description, { shouldValidate: true });
+    } catch (err) {
+      alert('Failed to contact AI Coach. Please try again.');
+    } finally {
+      setIsEnhancing(false);
+    }
+  }
+
   return (
     <form className={styles.form} onSubmit={handleSubmit(onSubmit)}>
       <div className={styles.field}>
-        <label className={styles.label}>Goal Title <span className={styles.required}>*</span></label>
+        <div className={styles.labelRow}>
+          <label className={styles.label}>Goal Title <span className={styles.required}>*</span></label>
+          <button type="button" className={styles.btnEnhance} onClick={handleEnhance} disabled={isEnhancing}>
+            {isEnhancing ? '✨ Enhancing...' : '✨ AI Enhance'}
+          </button>
+        </div>
         <input
           className={`${styles.input} ${errors.title ? styles.inputError : ''}`}
           placeholder="e.g. Achieve ₹50L in new business revenue"

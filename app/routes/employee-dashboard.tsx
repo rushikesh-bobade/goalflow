@@ -7,6 +7,7 @@ import { AnimatedWeightageRing } from '~/blocks/employee-dashboard/animated-weig
 import { GoalCardsGrid } from '~/blocks/employee-dashboard/goal-cards-grid';
 import { QuarterlyCheckInBanner } from '~/blocks/employee-dashboard/quarterly-check-in-banner';
 import { GoalLifecycleStepper } from '~/blocks/employee-dashboard/goal-lifecycle-stepper';
+import { AlignmentTree } from '~/blocks/employee-dashboard/alignment-tree';
 import styles from './employee-dashboard.module.css';
 
 export function meta() {
@@ -139,6 +140,7 @@ function EmployeeDashboardInner() {
                 </div>
               </div>
             )}
+            <AlignmentTree />
           </aside>
         </div>
       </div>
