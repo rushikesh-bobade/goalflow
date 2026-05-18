@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { supabase } from '~/lib/supabase';
 import {
   USERS, GOALS, GOAL_CYCLES, NOTIFICATIONS, AUDIT_LOGS, ESCALATION_RULES, CHECK_INS,
   type User, type Goal, type GoalCycle, type Notification, type AuditLog, type EscalationRule, type CheckIn
@@ -42,7 +43,7 @@ const SESSION_KEY = 'atomquest-session';
 export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
-  const [users] = useState(USERS);
+  const [users, setUsers] = useState<User[]>(USERS);
   const [goals, setGoals] = useState<Goal[]>(GOALS);
   const [goalCycles, setGoalCycles] = useState<GoalCycle[]>(GOAL_CYCLES);
   const [checkIns, setCheckIns] = useState<CheckIn[]>(CHECK_INS);
@@ -50,29 +51,77 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(AUDIT_LOGS);
   const [escalationRules, setEscalationRules] = useState<EscalationRule[]>(ESCALATION_RULES);
 
-  // Hydrate session from localStorage on mount (client-side only)
+  // Supabase Sync: Fetch all data on mount
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [usersRes, goalsRes, cyclesRes, checkinsRes, notifsRes, logsRes, rulesRes] = await Promise.all([
+          supabase.from('users').select('*'),
+          supabase.from('goals').select('*'),
+          supabase.from('goal_cycles').select('*'),
+          supabase.from('check_ins').select('*'),
+          supabase.from('notifications').select('*'),
+          supabase.from('audit_logs').select('*'),
+          supabase.from('escalation_rules').select('*')
+        ]);
+
+        if (usersRes.data?.length) setUsers(usersRes.data.map((u: any) => ({ ...u, managerId: u.manager_id, avatarInitials: u.avatar_initials })) as User[]);
+        if (goalsRes.data?.length) setGoals(goalsRes.data.map((g: any) => ({
+          ...g, employeeId: g.employee_id, cycleId: g.cycle_id, thrustAreaId: g.thrust_area_id,
+          uomType: g.uom_type, targetValue: g.target_value, targetDate: g.target_date,
+          isShared: g.is_shared, sharedBy: g.shared_by, parentGoalId: g.parent_goal_id,
+          createdAt: g.created_at, updatedAt: g.updated_at
+        })) as Goal[]);
+        if (cyclesRes.data?.length) setGoalCycles(cyclesRes.data.map((c: any) => ({
+          ...c, windowOpen: c.window_open, windowClose: c.window_close, isActive: c.is_active
+        })) as GoalCycle[]);
+        if (checkinsRes.data?.length) setCheckIns(checkinsRes.data.map((c: any) => ({
+          ...c, goalId: c.goal_id, cycleId: c.cycle_id, actualValue: c.actual_value,
+          actualDate: c.actual_date, progressStatus: c.progress_status, computedScore: c.computed_score,
+          managerComment: c.manager_comment, employeeSubmittedAt: c.employee_submitted_at,
+          managerReviewedAt: c.manager_reviewed_at
+        })) as CheckIn[]);
+        if (notifsRes.data?.length) setNotifications(notifsRes.data.map((n: any) => ({
+          ...n, userId: n.user_id, isRead: n.is_read, deepLink: n.deep_link, createdAt: n.created_at
+        })) as Notification[]);
+        if (logsRes.data?.length) setAuditLogs(logsRes.data.map((l: any) => ({
+          ...l, userId: l.user_id, goalId: l.goal_id, fieldChanged: l.field_changed,
+          oldValue: l.old_value, newValue: l.new_value
+        })) as AuditLog[]);
+        if (rulesRes.data?.length) setEscalationRules(rulesRes.data.map((r: any) => ({
+          ...r, ruleType: r.rule_type, thresholdDays: r.threshold_days, notifyEmployee: r.notify_employee,
+          notifyManager: r.notify_manager, notifyHr: r.notify_hr, isActive: r.is_active
+        })) as EscalationRule[]);
+      } catch (e) {
+        console.error("Failed to sync from Supabase, falling back to mock data", e);
+      }
+    }
+    loadData();
+  }, []);
+
+  // Hydrate session from localStorage on mount
   useEffect(() => {
     try {
       const saved = typeof window !== 'undefined' ? window.localStorage.getItem(SESSION_KEY) : null;
-      if (saved) {
-        const user = USERS.find(u => u.id === saved);
+      if (saved && users.length > 0) {
+        const user = users.find(u => u.id === saved);
         if (user) setCurrentUser(user);
       }
     } catch {
       /* ignore storage errors */
     }
     setIsHydrated(true);
-  }, []);
+  }, [users]);
 
   const login = useCallback((userId: string): User | null => {
-    const user = USERS.find(u => u.id === userId);
+    const user = users.find(u => u.id === userId);
     if (user) {
       setCurrentUser(user);
       try { window.localStorage.setItem(SESSION_KEY, userId); } catch { /* ignore */ }
       return user;
     }
     return null;
-  }, []);
+  }, [users]);
 
   const logout = useCallback(() => {
     setCurrentUser(null);
@@ -80,19 +129,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addAuditLog = useCallback((log: Omit<AuditLog, 'id'>) => {
-    setAuditLogs(prev => [{ ...log, id: `al-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }, ...prev]);
+    const newLog = { ...log, id: `al-${Date.now()}` } as AuditLog;
+    setAuditLogs(prev => [newLog, ...prev]);
+    // Supabase Sync (Fire and forget)
+    supabase.from('audit_logs').insert([{
+      user_id: log.userId, goal_id: log.goalId, action: log.action,
+      field_changed: log.fieldChanged, old_value: log.oldValue, new_value: log.newValue
+    }]).then();
   }, []);
 
   const addNotification = useCallback((n: Omit<Notification, 'id' | 'createdAt'>) => {
-    setNotifications(prev => [{
-      ...n,
-      id: `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      createdAt: new Date().toISOString(),
-    }, ...prev]);
+    const newNotif = { ...n, id: `n-${Date.now()}`, createdAt: new Date().toISOString() } as Notification;
+    setNotifications(prev => [newNotif, ...prev]);
+    // Supabase Sync
+    supabase.from('notifications').insert([{
+      user_id: n.userId, type: n.type, title: n.title, message: n.message, deep_link: n.deepLink
+    }]).then();
   }, []);
 
   const addGoal = useCallback((goal: Goal) => {
     setGoals(prev => [...prev, goal]);
+    
+    // Convert to DB snake_case structure before insert
+    const dbGoal = {
+      id: goal.id, employee_id: goal.employeeId, cycle_id: goal.cycleId, 
+      thrust_area_id: goal.thrustAreaId, title: goal.title, description: goal.description,
+      uom_type: goal.uomType, target_value: goal.targetValue, target_date: goal.targetDate,
+      weightage: goal.weightage, status: goal.status, is_shared: goal.isShared,
+      parent_goal_id: goal.parentGoalId, shared_by: goal.sharedBy
+    };
+    supabase.from('goals').insert([dbGoal]).then();
+    
     addAuditLog({
       userId: goal.employeeId, goalId: goal.id, action: 'goal_created',
       newValue: goal.title, timestamp: new Date().toISOString()
@@ -101,142 +168,124 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateGoal = useCallback((goalId: string, updates: Partial<Goal>) => {
     setGoals(prev => prev.map(g => g.id === goalId ? { ...g, ...updates, updatedAt: new Date().toISOString() } : g));
+    
+    // DB Mapping
+    const dbUpdates: any = {};
+    if (updates.title) dbUpdates.title = updates.title;
+    if (updates.description) dbUpdates.description = updates.description;
+    if (updates.targetValue) dbUpdates.target_value = updates.targetValue;
+    if (updates.weightage) dbUpdates.weightage = updates.weightage;
+    if (updates.status) dbUpdates.status = updates.status;
+    
+    supabase.from('goals').update(dbUpdates).eq('id', goalId).then();
   }, []);
 
   const deleteGoal = useCallback((goalId: string) => {
     setGoals(prev => prev.filter(g => g.id !== goalId));
+    supabase.from('goals').delete().eq('id', goalId).then();
   }, []);
-
-  const submitGoals = useCallback((goalIds: string[]) => {
-    setGoals(prev => prev.map(g => goalIds.includes(g.id) ? { ...g, status: 'submitted', updatedAt: new Date().toISOString() } : g));
-    // Notify managers
-    const employee = currentUser;
-    if (employee?.managerId) {
-      addNotification({
-        userId: employee.managerId, type: 'goal_submitted',
-        title: 'Goals Submitted for Approval',
-        message: `${employee.name} submitted ${goalIds.length} goal(s) for approval`,
-        isRead: false, deepLink: '/manager/approvals',
-      });
-    }
-    goalIds.forEach(gid => addAuditLog({
-      userId: employee?.id || '', goalId: gid, action: 'goal_submitted',
-      timestamp: new Date().toISOString()
-    }));
-  }, [addAuditLog, addNotification, currentUser]);
 
   const approveGoals = useCallback((goalIds: string[], managerId: string, comment?: string) => {
     setGoals(prev => prev.map(g => goalIds.includes(g.id) ? { ...g, status: 'approved', updatedAt: new Date().toISOString() } : g));
-    addAuditLog({ userId: managerId, action: 'goals_approved', newValue: goalIds.join(','), timestamp: new Date().toISOString() });
-    // Notify employee
-    const firstGoal = goals.find(g => g.id === goalIds[0]);
-    if (firstGoal) {
-      addNotification({
-        userId: firstGoal.employeeId, type: 'goal_approved',
-        title: 'Goals Approved & Locked',
-        message: `Your ${goalIds.length} goal(s) have been approved${comment ? `: ${comment}` : ''}`,
-        isRead: false, deepLink: '/employee/dashboard',
-      });
-    }
-  }, [addAuditLog, addNotification, goals]);
+    supabase.from('goals').update({ status: 'approved' }).in('id', goalIds).then();
+    
+    goalIds.forEach(id => {
+      const g = goals.find(x => x.id === id);
+      if (g) {
+        addNotification({ userId: g.employeeId, type: 'goal_approved', title: 'Goals Approved', message: 'Your goals were approved.', deepLink: '/employee/dashboard', isRead: false });
+        addAuditLog({ userId: managerId, goalId: id, action: 'goal_approved', timestamp: new Date().toISOString() });
+      }
+    });
+  }, [goals, addNotification, addAuditLog]);
 
   const rejectGoals = useCallback((goalIds: string[], managerId: string, comment: string) => {
     setGoals(prev => prev.map(g => goalIds.includes(g.id) ? { ...g, status: 'draft', updatedAt: new Date().toISOString() } : g));
-    addAuditLog({ userId: managerId, action: 'goals_rejected', newValue: comment, timestamp: new Date().toISOString() });
-    const firstGoal = goals.find(g => g.id === goalIds[0]);
-    if (firstGoal) {
-      addNotification({
-        userId: firstGoal.employeeId, type: 'goal_rejected',
-        title: 'Goals Rejected',
-        message: `Manager rejected your goals: ${comment}`,
-        isRead: false, deepLink: '/employee/dashboard',
-      });
-    }
-  }, [addAuditLog, addNotification, goals]);
+    supabase.from('goals').update({ status: 'draft' }).in('id', goalIds).then();
+    goalIds.forEach(id => {
+      const g = goals.find(x => x.id === id);
+      if (g) addNotification({ userId: g.employeeId, type: 'goal_rejected', title: 'Goals Rejected', message: comment, deepLink: '/employee/dashboard', isRead: false });
+    });
+  }, [goals, addNotification]);
 
   const reworkGoals = useCallback((goalIds: string[], managerId: string, comment: string) => {
     setGoals(prev => prev.map(g => goalIds.includes(g.id) ? { ...g, status: 'rework', updatedAt: new Date().toISOString() } : g));
-    addAuditLog({ userId: managerId, action: 'goals_rework', newValue: comment, timestamp: new Date().toISOString() });
-    const firstGoal = goals.find(g => g.id === goalIds[0]);
-    if (firstGoal) {
-      addNotification({
-        userId: firstGoal.employeeId, type: 'goal_rework',
-        title: 'Goal Returned for Rework',
-        message: `Manager returned your goals: ${comment}`,
-        isRead: false, deepLink: '/employee/dashboard',
-      });
+    supabase.from('goals').update({ status: 'rework' }).in('id', goalIds).then();
+    goalIds.forEach(id => {
+      const g = goals.find(x => x.id === id);
+      if (g) addNotification({ userId: g.employeeId, type: 'goal_rework', title: 'Goal Needs Rework', message: comment, deepLink: `/employee/goals/${id}`, isRead: false });
+    });
+  }, [goals, addNotification]);
+
+  const submitGoals = useCallback((goalIds: string[]) => {
+    setGoals(prev => prev.map(g => goalIds.includes(g.id) ? { ...g, status: 'submitted', updatedAt: new Date().toISOString() } : g));
+    supabase.from('goals').update({ status: 'submitted' }).in('id', goalIds).then();
+    
+    // Notify manager
+    const sampleGoal = goals.find(g => goalIds.includes(g.id));
+    if (sampleGoal && currentUser?.managerId) {
+       addNotification({ userId: currentUser.managerId, type: 'goal_submitted', title: 'Goals Submitted', message: `${currentUser.name} submitted goals.`, deepLink: '/manager/approvals', isRead: false });
     }
-  }, [addAuditLog, addNotification, goals]);
+  }, [goals, currentUser, addNotification]);
 
   const addCheckIn = useCallback((checkIn: CheckIn) => {
     setCheckIns(prev => [...prev, checkIn]);
-    const goal = goals.find(g => g.id === checkIn.goalId);
-    addAuditLog({
-      userId: goal?.employeeId || '', goalId: checkIn.goalId, action: 'checkin_submitted',
-      fieldChanged: 'quarter', newValue: checkIn.quarter, timestamp: new Date().toISOString()
-    });
-    // Notify manager
-    if (goal?.employeeId) {
-      const employee = users.find(u => u.id === goal.employeeId);
-      if (employee?.managerId) {
-        addNotification({
-          userId: employee.managerId, type: 'checkin_submitted',
-          title: 'Check-in Submitted',
-          message: `${employee.name} completed their ${checkIn.quarter} check-in`,
-          isRead: false, deepLink: '/manager/checkin',
-        });
-      }
-    }
-  }, [addAuditLog, addNotification, goals, users]);
+    
+    const dbCheckin = {
+      id: checkIn.id, goal_id: checkIn.goalId, cycle_id: checkIn.cycleId, quarter: checkIn.quarter,
+      actual_value: checkIn.actualValue, actual_date: checkIn.actualDate, progress_status: checkIn.progressStatus,
+      computed_score: checkIn.computedScore, employee_submitted_at: checkIn.employeeSubmittedAt,
+      manager_reviewed_at: checkIn.managerReviewedAt, manager_comment: checkIn.managerComment
+    };
+    supabase.from('check_ins').insert([dbCheckin]).then();
+  }, []);
 
   const markNotificationRead = useCallback((notificationId: string) => {
     setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n));
+    supabase.from('notifications').update({ is_read: true }).eq('id', notificationId).then();
   }, []);
 
   const markAllNotificationsRead = useCallback(() => {
-    setNotifications(prev => prev.map(n =>
-      n.userId === currentUser?.id ? { ...n, isRead: true } : n
-    ));
+    if (!currentUser) return;
+    setNotifications(prev => prev.map(n => n.userId === currentUser.id ? { ...n, isRead: true } : n));
+    supabase.from('notifications').update({ is_read: true }).eq('user_id', currentUser.id).then();
   }, [currentUser]);
 
   const toggleCycleActive = useCallback((cycleId: string) => {
-    setGoalCycles(prev => prev.map(c => ({
-      ...c,
-      isActive: c.id === cycleId ? !c.isActive : c.isActive,
-    })));
-  }, []);
+    const cycle = goalCycles.find(c => c.id === cycleId);
+    if (!cycle) return;
+    setGoalCycles(prev => prev.map(c => c.id === cycleId ? { ...c, isActive: !c.isActive } : c));
+    supabase.from('goal_cycles').update({ is_active: !cycle.isActive }).eq('id', cycleId).then();
+  }, [goalCycles]);
 
   const unlockGoal = useCallback((goalId: string, reason: string, adminId: string) => {
     setGoals(prev => prev.map(g => g.id === goalId ? { ...g, status: 'draft', updatedAt: new Date().toISOString() } : g));
-    addAuditLog({ userId: adminId, goalId, action: 'goal_unlocked', fieldChanged: 'status', oldValue: 'locked', newValue: 'draft', timestamp: new Date().toISOString() });
-    const goal = goals.find(g => g.id === goalId);
-    if (goal) {
-      addNotification({
-        userId: goal.employeeId, type: 'goal_unlocked',
-        title: 'Goal Unlocked by Admin',
-        message: `Admin unlocked your goal: ${goal.title}. Reason: ${reason}`,
-        isRead: false, deepLink: `/employee/goals/${goalId}`,
-      });
+    supabase.from('goals').update({ status: 'draft' }).eq('id', goalId).then();
+    
+    const g = goals.find(x => x.id === goalId);
+    if (g) {
+      addNotification({ userId: g.employeeId, type: 'goal_unlocked', title: 'Goal Unlocked', message: `Admin unlocked: ${reason}`, deepLink: `/employee/goals/${goalId}`, isRead: false });
+      addAuditLog({ userId: adminId, goalId: goalId, action: 'goal_unlocked', newValue: 'draft', timestamp: new Date().toISOString() });
     }
-  }, [addAuditLog, addNotification, goals]);
+  }, [goals, addNotification, addAuditLog]);
 
-  const pushSharedGoal = useCallback((goalTemplate: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>, employeeIds: string[]) => {
-    const now = new Date().toISOString();
-    const newGoals: Goal[] = employeeIds.map(empId => ({
-      ...goalTemplate, id: `goal-shared-${Date.now()}-${empId}`,
-      employeeId: empId, isShared: true, createdAt: now, updatedAt: now
-    }));
+  const pushSharedGoal = useCallback((goal: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>, employeeIds: string[]) => {
+    const newGoals = employeeIds.map(empId => ({
+      ...goal, id: `g-${Date.now()}-${empId}`, employeeId: empId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    })) as Goal[];
+    
     setGoals(prev => [...prev, ...newGoals]);
-    addAuditLog({ userId: goalTemplate.sharedBy || '', action: 'shared_goal_pushed', newValue: goalTemplate.title, timestamp: now });
-    employeeIds.forEach(empId => {
-      addNotification({
-        userId: empId, type: 'shared_goal_received',
-        title: 'New Shared Goal Assigned',
-        message: `Admin pushed a new shared goal: ${goalTemplate.title}`,
-        isRead: false, deepLink: '/employee/dashboard',
-      });
+    
+    const dbGoals = newGoals.map(g => ({
+       id: g.id, employee_id: g.employeeId, cycle_id: g.cycleId, thrust_area_id: g.thrustAreaId,
+       title: g.title, description: g.description, uom_type: g.uomType, target_value: g.targetValue,
+       weightage: g.weightage, status: g.status, is_shared: g.isShared, shared_by: g.sharedBy
+    }));
+    supabase.from('goals').insert(dbGoals).then();
+
+    newGoals.forEach(g => {
+      addNotification({ userId: g.employeeId, type: 'goal_shared', title: 'New Shared Goal', message: `A KPI was pushed to your goal sheet.`, deepLink: `/employee/dashboard`, isRead: false });
     });
-  }, [addAuditLog, addNotification]);
+  }, [addNotification]);
 
   const addEscalationRule = useCallback((rule: EscalationRule) => {
     setEscalationRules(prev => [...prev, rule]);
@@ -246,21 +295,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEscalationRules(prev => prev.map(r => r.id === ruleId ? { ...r, isActive: !r.isActive } : r));
   }, []);
 
-  return (
-    <AppContext.Provider value={{
-      currentUser, users, goals, goalCycles, checkIns, notifications, auditLogs, escalationRules,
-      isAuthenticated: !!currentUser, isHydrated,
-      login, logout, addGoal, updateGoal, deleteGoal, approveGoals, rejectGoals, reworkGoals, submitGoals,
-      addCheckIn, markNotificationRead, markAllNotificationsRead, toggleCycleActive, unlockGoal, pushSharedGoal,
-      addEscalationRule, toggleEscalationRule, addAuditLog, addNotification
-    }}>
-      {children}
-    </AppContext.Provider>
-  );
+  const value = {
+    currentUser, users, goals, goalCycles, checkIns, notifications, auditLogs, escalationRules,
+    isAuthenticated: !!currentUser, isHydrated,
+    login, logout, addGoal, updateGoal, deleteGoal, approveGoals, rejectGoals, reworkGoals,
+    submitGoals, addCheckIn, markNotificationRead, markAllNotificationsRead, toggleCycleActive,
+    unlockGoal, pushSharedGoal, addEscalationRule, toggleEscalationRule, addAuditLog, addNotification
+  };
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
-export function useAppState(): AppState {
-  const ctx = useContext(AppContext);
-  if (!ctx) throw new Error('useAppState must be used within AppProvider');
-  return ctx;
+export function useAppState() {
+  const context = useContext(AppContext);
+  if (!context) throw new Error('useAppState must be used within an AppProvider');
+  return context;
 }
