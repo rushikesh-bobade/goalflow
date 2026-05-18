@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router';
 import {
   IconBell, IconChevronDown, IconLogout, IconUser,
-  IconLayoutDashboard, IconShieldLock, IconCheck
+  IconLayoutDashboard, IconShieldLock, IconCheck,
+  IconSun, IconMoon
 } from '@tabler/icons-react';
 import { useAppState } from '~/hooks/use-app-state';
 import styles from './app-topbar.module.css';
@@ -43,7 +44,7 @@ function getPageTitle(pathname: string): string {
 }
 
 export function AppTopbar() {
-  const { currentUser, notifications, markNotificationRead, markAllNotificationsRead, goalCycles, logout } = useAppState();
+  const { currentUser, notifications, markNotificationRead, markAllNotificationsRead, goalCycles, logout, theme, toggleTheme } = useAppState();
   const [showNotif, setShowNotif] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -97,6 +98,15 @@ export function AppTopbar() {
       </div>
 
       <div className={styles.right}>
+        <button
+          className={styles.iconBtn}
+          onClick={toggleTheme}
+          title={`Switch to ${theme === 'dark' ? 'Light Mode' : 'Dark Mode'}`}
+          aria-label={`Switch to ${theme === 'dark' ? 'Light Mode' : 'Dark Mode'}`}
+        >
+          {theme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
+        </button>
+
         <div ref={notifRef} className={styles.notifWrap}>
           <button
             className={styles.iconBtn}
