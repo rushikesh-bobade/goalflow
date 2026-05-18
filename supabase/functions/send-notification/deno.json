@@ -1,0 +1,8 @@
+{
+  "tasks": {
+    "start": "supabase functions serve"
+  },
+  "imports": {
+    "https://esm.sh/v135/": "https://esm.sh/v135/"
+  }
+}

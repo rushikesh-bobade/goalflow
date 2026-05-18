@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   IconUser, IconLayoutDashboard, IconShieldLock, IconArrowLeft,
@@ -56,10 +56,12 @@ export default function LoginPage() {
   const [signingIn, setSigningIn] = useState<string | null>(null);
 
   // Auto-redirect if already authenticated
-  if (isAuthenticated && currentUser) {
-    const dashboards = { employee: '/employee/dashboard', manager: '/manager/dashboard', admin: '/admin/dashboard' };
-    navigate(dashboards[currentUser.role], { replace: true });
-  }
+  useEffect(() => {
+    if (isAuthenticated && currentUser) {
+      const dashboards = { employee: '/employee/dashboard', manager: '/manager/dashboard', admin: '/admin/dashboard' };
+      navigate(dashboards[currentUser.role], { replace: true });
+    }
+  }, [isAuthenticated, currentUser, navigate]);
 
   function handleLogin(roleId: string, redirect: string) {
     setSigningIn(roleId);

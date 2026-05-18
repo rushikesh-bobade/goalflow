@@ -143,20 +143,20 @@ export function AppTopbar() {
         {currentUser && (
           <div ref={menuRef} className={styles.userWrap}>
             <button className={styles.userBtn} onClick={() => setShowMenu(p => !p)}>
-              <div className={styles.avatar}>{currentUser.avatarInitials}</div>
+              <div className={styles.avatar}>{currentUser?.avatarInitials}</div>
               <div className={styles.userInfo}>
-                <span className={styles.userName}>{currentUser.name}</span>
-                <span className={styles.userRole}><RoleIcon size={10} /> {currentUser.role}</span>
+                <span className={styles.userName}>{currentUser?.name}</span>
+                <span className={styles.userRole}><RoleIcon size={10} /> {currentUser?.role}</span>
               </div>
               <IconChevronDown size={14} className={styles.chevron} />
             </button>
             {showMenu && (
               <div className={styles.menuPanel}>
                 <div className={styles.menuHeader}>
-                  <div className={styles.menuAvatar}>{currentUser.avatarInitials}</div>
+                  <div className={styles.menuAvatar}>{currentUser?.avatarInitials}</div>
                   <div className={styles.menuInfo}>
-                    <div className={styles.menuName}>{currentUser.name}</div>
-                    <div className={styles.menuEmail}>{currentUser.email}</div>
+                    <div className={styles.menuName}>{currentUser?.name}</div>
+                    <div className={styles.menuEmail}>{currentUser?.email}</div>
                   </div>
                 </div>
                 <Link to="/admin/audit" className={styles.menuItem} onClick={() => setShowMenu(false)}>
