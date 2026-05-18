@@ -35,6 +35,8 @@ interface AppState {
   toggleEscalationRule: (ruleId: string) => void;
   addAuditLog: (log: Omit<AuditLog, 'id'>) => void;
   addNotification: (n: Omit<Notification, 'id' | 'createdAt'>) => void;
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -50,6 +52,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>(NOTIFICATIONS);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(AUDIT_LOGS);
   const [escalationRules, setEscalationRules] = useState<EscalationRule[]>(ESCALATION_RULES);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined') {
+      return (window.localStorage.getItem('atomquest-theme') as 'light' | 'dark') || 'dark';
+    }
+    return 'dark';
+  });
+
+  // Apply theme to html element on theme change
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.style.colorScheme = theme;
+    window.localStorage.setItem('atomquest-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  }, []);
 
   // Supabase Sync: Fetch all data on mount
   useEffect(() => {
@@ -300,7 +319,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!currentUser, isHydrated,
     login, logout, addGoal, updateGoal, deleteGoal, approveGoals, rejectGoals, reworkGoals,
     submitGoals, addCheckIn, markNotificationRead, markAllNotificationsRead, toggleCycleActive,
-    unlockGoal, pushSharedGoal, addEscalationRule, toggleEscalationRule, addAuditLog, addNotification
+    unlockGoal, pushSharedGoal, addEscalationRule, toggleEscalationRule, addAuditLog, addNotification,
+    theme, toggleTheme
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
