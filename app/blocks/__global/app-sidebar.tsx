@@ -39,7 +39,7 @@ export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
 
   if (!currentUser) return null;
-  const items = NAV_BY_ROLE[currentUser.role] ?? [];
+  const items = currentUser ? (NAV_BY_ROLE[currentUser.role] ?? []) : [];
 
   return (
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ''}`}>
